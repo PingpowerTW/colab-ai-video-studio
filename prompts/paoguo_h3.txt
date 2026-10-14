@@ -1,0 +1,17 @@
+subject_definitions:
+<Subject 1>: The clear glass jar with bamboo lid filled with artisanal pickled green mango slices (黎明村手作醋溜泡果) from <Picture 1>, featuring succulent translucent green mango slices soaking in sparkling golden-amber vinegar sauce.
+
+summary:
+An appetizing, high-end culinary commercial sequence of artisanal pickled green mango. A wooden fork lifts a crisp translucent green mango slice dripping golden vinegar, as morning sunlight creates glistening highlights and water condensation on the glass jar.
+
+retention_analysis:
+Preserve the authentic look of the glass jar with wooden bamboo lid, glistening succulent green mango slices, golden-amber vinegar sauce, and warm sunlit kitchen ambiance from <Picture 1>.
+
+detailed_description:
+[Shot 1] Ultra-appetizing cinematic food commercial. The glass jar <Subject 1> sits bathed in warm natural morning sunlight with delicate condensation droplets. A rustic wooden fork gently lifts a crisp, translucent green mango slice out of the jar. Sparkling golden-amber sweet-sour vinegar sauce drips tantalizingly from the slice back into the jar. The camera performs a smooth, shallow depth-of-field slow push-in, capturing every glistening texture and crisp edge. <d>[Chinese] 你敢信？這酸爽清脆的芒果青，居然是鹹的！黎明村手作泡果，越吃越涮嘴！</d>
+
+overall_soundscape:
+Crisp satisfying crunch biting sound, gentle viscous liquid droplets dripping, soft kitchen ambiance, and upbeat inviting Chinese voiceover narration.
+
+non_diegetic_music:
+Light acoustic guitar and bright upbeat culinary commercial melody.

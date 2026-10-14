@@ -1,0 +1,30 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Generated video outputs & media binaries
+outputs/
+*.mp4
+*.mkv
+*.mov
+
+# Python cache & build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Colab temporary files and run outputs
+assets/_temp_*
+assets/*_output.ipynb
+assets/paoguo_extracted/
+assets/poster_extracted/
+assets/slides/
+assets/thumbs/
+assets/tts_audio/
+
+# OS specific files
+.DS_Store
+Thumbs.db

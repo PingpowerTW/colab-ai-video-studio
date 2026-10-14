@@ -1,0 +1,16 @@
+[
+  {
+    "id": "cyberpunk_rain",
+    "prompt": "A cinematic wide shot of a futuristic cyberpunk city street at midnight during heavy rain. Neon reflections on wet ground, distant thunder and rain sounds.",
+    "num_frames": 121,
+    "seed": 42,
+    "output": "outputs/cyberpunk_rain.mp4"
+  },
+  {
+    "id": "nature_stream",
+    "prompt": "Peaceful forest stream flowing over smooth river stones in golden hour sunlight. Lush green moss, birds chirping, clear flowing water sound.",
+    "num_frames": 121,
+    "seed": 100,
+    "output": "outputs/nature_stream.mp4"
+  }
+]

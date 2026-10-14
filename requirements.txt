@@ -1,0 +1,9 @@
+# Local Python requirements for Colab Video Automation Studio (MiniMax H3 & LTX-2.5)
+google-colab-cli>=0.7.4
+jupyter-kernel-client>=0.4.0
+pydantic>=2.0.0
+rich>=13.0.0
+typer>=0.12.0
+python-dotenv>=1.0.0
+Pillow>=10.0.0
+requests>=2.31.0

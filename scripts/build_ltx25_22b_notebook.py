@@ -1,0 +1,297 @@
+import json
+from pathlib import Path
+
+notebook = {
+    "cells": [
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "# Lightricks LTX-2.5 (22B) Dual-Stream DiT Video & Audio Generation Pipeline\n",
+                "\n",
+                "此 Notebook 在 **Google Colab (A100 / H100)** 上執行真正的 **Lightricks/LTX-2.5 (22B)** 旗艦級模型。\n",
+                "- **Transformer**: `diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors` (39.1 GB)\n",
+                "- **Text Encoder**: `text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors` (24.5 GB)\n",
+                "- **Video VAE**: `vae/ltx-2.5-video-vae-bf16.safetensors` (1.37 GB)\n",
+                "- **Audio VAE**: `vae/ltx-2.5-audio-vae-bf16.safetensors` (340 MB) 原生同步音訊生成\n",
+                "- **Duration Head**: `model_patches/ltx-2.5-duration-head-bf16.safetensors` (3.7 MB)\n",
+                "- **Latent Spatial Upscaler**: `latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors` (930 MB) 兩階段 2x 超解析\n"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 1. 檢查 GPU 硬體與儲存空間"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "!nvidia-smi\n",
+                "!df -h /content\n"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 2. 環境建置 (安裝 uv 與 Clone 官方 Lightricks/LTX-2)"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "import os, subprocess, sys\n",
+                "\n",
+                "print('[1/3] 正在安裝 uv 與 huggingface_hub[cli]...')\n",
+                "subprocess.run(['pip', 'install', '-q', 'uv', 'huggingface_hub[cli]'], check=True)\n",
+                "\n",
+                "repo_dir = '/content/LTX-2'\n",
+                "if not os.path.exists(repo_dir):\n",
+                "    print('[2/3] 正在 Clone 官方 Lightricks/LTX-2 倉庫...')\n",
+                "    subprocess.run(['git', 'clone', 'https://github.com/Lightricks/LTX-2.git', repo_dir], check=True)\n",
+                "else:\n",
+                "    print('[2/3] Lightricks/LTX-2 倉庫已就緒。')\n",
+                "\n",
+                "print('[3/3] 透過 uv 同步建立完整依賴環境 (含 natten 加速支援)...')\n",
+                "subprocess.run(['uv', 'sync', '--extra', 'natten'], cwd=repo_dir, check=True)\n",
+                "subprocess.run(['uv', 'pip', 'install', 'matplotlib-inline'], cwd=repo_dir)\n",
+                "print('✅ LTX-2.5 環境建置完成！')\n"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 3. 下載 LTX-2.5 22B 官方權重 (已驗證 Hugging Face 授權)"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "import os\n",
+                "from pathlib import Path\n",
+                "from huggingface_hub import hf_hub_download\n",
+                "\n",
+                "hf_token = os.environ.get('HF_TOKEN', '').strip()\n",
+                "if not hf_token:\n",
+                "    try:\n",
+                "        from google.colab import userdata\n",
+                "        hf_token = userdata.get('HF_TOKEN')\n",
+                "    except Exception:\n",
+                "        pass\n",
+                "\n",
+                "assert hf_token, '需設定 HF_TOKEN 才能下載已獲授權的 Lightricks/LTX-2.5 模型！'\n",
+                "\n",
+                "model_repo = 'Lightricks/LTX-2.5'\n",
+                "base_dir = Path('/content/models/ltx-2.5')\n",
+                "\n",
+                "files = [\n",
+                "    'diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors',\n",
+                "    'text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors',\n",
+                "    'vae/ltx-2.5-video-vae-bf16.safetensors',\n",
+                "    'vae/ltx-2.5-audio-vae-bf16.safetensors',\n",
+                "    'model_patches/ltx-2.5-duration-head-bf16.safetensors',\n",
+                "    'latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors',\n",
+                "]\n",
+                "\n",
+                "print(f'正在檢查/下載 {len(files)} 個 LTX-2.5 22B 核心權重檔案 (共約 66 GB)...')\n",
+                "for rel_path in files:\n",
+                "    target_file = base_dir / rel_path\n",
+                "    if target_file.exists() and target_file.stat().st_size > 1024 * 1024:\n",
+                "        sz_gb = round(target_file.stat().st_size / (1024**3), 2)\n",
+                "        print(f'  [已存在] {rel_path} ({sz_gb} GB)')\n",
+                "    else:\n",
+                "        print(f'  [正在高速下載] {rel_path} ...')\n",
+                "        target_file.parent.mkdir(parents=True, exist_ok=True)\n",
+                "        hf_hub_download(\n",
+                "            repo_id=model_repo,\n",
+                "            filename=rel_path,\n",
+                "            local_dir=str(base_dir),\n",
+                "            token=hf_token\n",
+                "        )\n",
+                "        sz_gb = round(target_file.stat().st_size / (1024**3), 2)\n",
+                "        print(f'  ✅ 下載完成: {rel_path} ({sz_gb} GB)')\n",
+                "\n",
+                "print('🎉 所有 LTX-2.5 22B 權重均已就緒！')\n"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 4. 讀取任務參數與提示詞"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "import os\n",
+                "from pathlib import Path\n",
+                "\n",
+                "prompt_file = os.environ.get('LTX_PROMPT_FILE', '/content/prompt.txt')\n",
+                "image_file = os.environ.get('LTX_IMAGE_FILE', '').strip()\n",
+                "output_path = os.environ.get('LTX_OUTPUT_PATH', '/content/output.mp4')\n",
+                "num_frames = int(os.environ.get('LTX_NUM_FRAMES', '121'))\n",
+                "seed = int(os.environ.get('LTX_SEED', '42'))\n",
+                "\n",
+                "# LTX-2.5 要求幀數必須滿足 (frames % 8 == 1)\n",
+                "if num_frames % 8 != 1:\n",
+                "    old_frames = num_frames\n",
+                "    num_frames = ((num_frames - 1) // 8) * 8 + 1\n",
+                "    if num_frames < 9:\n",
+                "        num_frames = 121\n",
+                "    print(f'調整影格數: {old_frames} -> {num_frames} 以符合 (frames % 8 == 1) 約束')\n",
+                "\n",
+                "if os.path.exists(prompt_file):\n",
+                "    with open(prompt_file, 'r', encoding='utf-8') as f:\n",
+                "        prompt = f.read().strip()\n",
+                "else:\n",
+                "    prompt = os.environ.get('LTX_PROMPT', 'A colossal oriental golden giant dragon roaring fiercely in turbulent storm clouds, lightning, cinematic 4K')\n",
+                "\n",
+                "print('=' * 60)\n",
+                "print(f'提示詞: {prompt}')\n",
+                "print(f'參考圖片: {image_file if image_file and os.path.exists(image_file) else \"(純文字 Text-to-Video)\"}')\n",
+                "print(f'總影格數: {num_frames} 幀 (約 {round(num_frames/24, 2)} 秒 @ 24fps)')\n",
+                "print(f'隨機種子 Seed: {seed}')\n",
+                "print(f'輸出目標: {output_path}')\n",
+                "print('=' * 60)\n"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 5. 執行 LTX-2.5 22B Distilled Pipeline 推論"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "import os, subprocess, sys\n",
+                "from pathlib import Path\n",
+                "\n",
+                "Path(output_path).parent.mkdir(parents=True, exist_ok=True)\n",
+                "\n",
+                "cmd = [\n",
+                "    'uv', 'run', 'python', '-m', 'ltx_pipelines.distilled',\n",
+                "    '--transformer-path', '/content/models/ltx-2.5/diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors',\n",
+                "    '--text-encoder-path', '/content/models/ltx-2.5/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors',\n",
+                "    '--video-vae-path', '/content/models/ltx-2.5/vae/ltx-2.5-video-vae-bf16.safetensors',\n",
+                "    '--audio-vae-path', '/content/models/ltx-2.5/vae/ltx-2.5-audio-vae-bf16.safetensors',\n",
+                "    '--duration-head-path', '/content/models/ltx-2.5/model_patches/ltx-2.5-duration-head-bf16.safetensors',\n",
+                "    '--spatial-upsampler-path', '/content/models/ltx-2.5/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors',\n",
+                "    '--prompt', prompt,\n",
+                "    '--seed', str(seed),\n",
+                "    '--num-frames', str(num_frames),\n",
+                "    '--output-path', str(output_path),\n",
+                "]\n",
+                "\n",
+                "if image_file and os.path.exists(image_file):\n",
+                "    print(f'加入首格圖像條件引導: {image_file}')\n",
+                "    cmd.extend(['--image', str(image_file), '0', '1.0'])\n",
+                "\n",
+                "opt_h = os.environ.get('LTX_HEIGHT', '').strip()\n",
+                "opt_w = os.environ.get('LTX_WIDTH', '').strip()\n",
+                "if opt_h and opt_w:\n",
+                "    cmd.extend(['--height', str(opt_h), '--width', str(opt_w)])\n",
+                "\n",
+                "# 修復 Colab 中 MPLBACKEND 導致 matplotlib 初始化崩潰的問題\n",
+                "sub_env = os.environ.copy()\n",
+                "sub_env['MPLBACKEND'] = 'Agg'\n",
+                "\n",
+                "print('\\n正在啟動 LTX-2.5 22B 影音雙串流推論...')\n",
+                "print('完整指令:', ' '.join(cmd))\n",
+                "sys.stdout.flush()\n",
+                "\n",
+                "proc = subprocess.Popen(\n",
+                "    cmd,\n",
+                "    cwd='/content/LTX-2',\n",
+                "    env=sub_env,\n",
+                "    stdout=subprocess.PIPE,\n",
+                "    stderr=subprocess.STDOUT,\n",
+                "    text=True,\n",
+                "    bufsize=1,\n",
+                ")\n",
+                "\n",
+                "for line in proc.stdout:\n",
+                "    print(line, end='', flush=True)\n",
+                "\n",
+                "proc.wait()\n",
+                "if proc.returncode != 0:\n",
+                "    raise RuntimeError(f'LTX-2.5 22B 推論異常失敗 (結束代碼 {proc.returncode})')\n",
+                "\n",
+                "print('\\n🎉 LTX-2.5 22B 推論成功完成！')\n"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 6. 驗證產出影片與音訊串流"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "import os, subprocess, json\n",
+                "\n",
+                "assert os.path.exists(output_path), f'未找到生成輸出檔案: {output_path}'\n",
+                "size_mb = round(os.path.getsize(output_path) / (1024 * 1024), 2)\n",
+                "print(f'[檔案大小] {size_mb} MB')\n",
+                "\n",
+                "res = subprocess.run(\n",
+                "    ['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'json', output_path],\n",
+                "    capture_output=True,\n",
+                "    text=True\n",
+                ")\n",
+                "data = json.loads(res.stdout)\n",
+                "streams = [s.get('codec_type') for s in data.get('streams', [])]\n",
+                "print(f'[偵測到串流] {streams}')\n",
+                "assert 'video' in streams, '輸出檔案缺少視訊串流！'\n",
+                "print('狀態：LTX-2.5 22B 影音驗證成功！')\n"
+            ]
+        }
+    ],
+    "metadata": {
+        "accelerator": "GPU",
+        "colab": {
+            "gpuType": "A100",
+            "provenance": []
+        },
+        "kernelspec": {
+            "display_name": "Python 3",
+            "name": "python3"
+        },
+        "language_info": {
+            "name": "python"
+        }
+    },
+    "nbformat": 4,
+    "nbformat_minor": 0
+}
+
+target = Path("assets/LTX_2_5_Colab.ipynb")
+with open(target, "w", encoding="utf-8") as f:
+    json.dump(notebook, f, indent=1, ensure_ascii=False)
+
+print("Updated assets/LTX_2_5_Colab.ipynb with MPLBACKEND fix and matplotlib-inline!")
